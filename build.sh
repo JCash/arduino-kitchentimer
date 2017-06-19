@@ -2,7 +2,7 @@ ARDUINO_DIR=/Users/mawe/work/arduino/Arduino.app/Contents/Java
 ARDUINO_TOOLS_DIR=$ARDUINO_DIR/hardware/tools/avr/bin
 #ARDUINO_TOOLS_DIR=/usr/local/bin/
 
-AVR_DEBUG=~/work/external/avr_debug
+#AVR_DEBUG=~/work/external/avr_debug
 
 GCC=$ARDUINO_TOOLS_DIR/avr-gcc
 CXX=$ARDUINO_TOOLS_DIR/avr-g++
@@ -11,22 +11,24 @@ NM=$ARDUINO_TOOLS_DIR/avr-gcc-nm
 RANLIB=$ARDUINO_TOOLS_DIR/avr-gcc-ranlib
 OBJCOPY=$ARDUINO_TOOLS_DIR/avr-objcopy
 AVRDUDE=$ARDUINO_TOOLS_DIR/avrdude
-AVRSIZE=$ARDUINO_TOOLS_DIR/avr-size
+#AVRSIZE=$ARDUINO_TOOLS_DIR/avr-size
+AVRSIZE=~/work/external/toolchain-avr/objdir/bin/avr-size
 
 MCU=atmega328p
-PORT=/dev/cu.wchusbserial1410
+PORT=/dev/cu.wchusbserial1420
 
 BUILD=./build
 TARGET=kitchentimer
 
-INCLUDES="-I$ARDUINO_DIR/hardware/arduino/avr/cores/arduino/ -I$ARDUINO_DIR/hardware/arduino/avr/variants/standard"
+INCLUDES="-I$ARDUINO_DIR/hardware/arduino/avr/cores/arduino/ -I$ARDUINO_DIR/hardware/arduino/avr/variants/standard -I$ARDUINO_DIR/hardware/arduino/avr/libraries/Wire/src/"
 CPPOPT="-Os"
-CPPFLAGS="-MMD -c -mmcu=$MCU -Wall -g -gdwarf-2 -ffunction-sections -fdata-sections -DF_CPU=16000000L -D__PROG_TYPES_COMPAT__ -fdiagnostics-color"
+CPPFLAGS="-MMD -c -mmcu=$MCU -Wall -g -gdwarf-2 -ffunction-sections -fdata-sections -DF_CPU=16000000L -D__PROG_TYPES_COMPAT__ -DARDUINO=10802 -DARDUINO_AVR_UNO -DARDUINO_ARCH_AVR -fdiagnostics-color"
+#AVR_DEBUG  CPPFLAGS="-c -g -Os -w -std=gnu++11 -fpermissive -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics -MMD -flto -mmcu=$MCU -DF_CPU=16000000L -DARDUINO=10802 -DARDUINO_AVR_UNO -DARDUINO_ARCH_AVR"
 CFLAGS="-std=gnu11 -flto -fno-fat-lto-objects"
 CXXFLAGS="$CPPFLAGS -fno-threadsafe-statics -flto -fpermissive -fno-exceptions"
 ASFLAGS="-x assembler-with-cpp -flto"
 LDFLAGS="-w -Os -g -gdwarf-2 -flto -fuse-linker-plugin -Wl,--gc-sections -mmcu=$MCU -L$BUILD"
-LIBS="-lcore"
+LIBS="-lcore -lwire -lwireutility -lm"
 
 set -e
 
@@ -100,12 +102,16 @@ if [ ! -z "$AVR_DEBUG" ]; then
     LIBS="-lavrdebug $LIBS"
     INCLUDES="-I$AVR_DEBUG $INCLUDES"
 
-    echo "BUILDING" ./build/libcore.a
+    echo "BUILDING" $BUILD/libavrdebug.a
     CompileLibrary $BUILD/libavrdebug.a $AVR_DEBUG/avr8-stub
 fi
 
 # Building the Arduino core manually
 CompileLibrary $BUILD/libcore.a $ARDUINO_DIR/hardware/arduino/avr/cores/arduino/
+
+# Wire
+CompileLibrary $BUILD/libwire.a $ARDUINO_DIR/hardware/arduino/avr/libraries/Wire/src/
+CompileLibrary $BUILD/libwireutility.a $ARDUINO_DIR/hardware/arduino/avr/libraries/Wire/src/utility
 
 echo "BUILDING SOURCE"
 $CXX $INCLUDES $CPPOPT $CPPFLAGS $CXXFLAGS src/main.cpp -o $BUILD/main.o
@@ -118,7 +124,7 @@ $OBJCOPY -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-w
 $OBJCOPY -O ihex -R .eeprom  $BUILD/$TARGET.elf $BUILD/$TARGET.hex
 
 echo "VERIFYING SIZE"
-$AVRSIZE --mcu=$MCU -C --format=avr $BUILD/$TARGET.elf
+$AVRSIZE --mcu=$MCU -C $BUILD/$TARGET.elf
 
 echo "UPLOADING FLASH"
 $AVRDUDE -V -C$ARDUINO_DIR/hardware/tools/avr/etc/avrdude.conf -p$MCU -carduino -P$PORT -b115200 -D -Uflash:w:$BUILD/$TARGET.hex:i
