@@ -40,7 +40,18 @@ const OledRect number_glyphs[] = {
 uint8_t _backbuffer[512] = { 0 };
 OledImage backbuffer = {_backbuffer, (uint16_t)128, (uint16_t)32};
 
+enum ETimerMode
+{
+    TIMER_MODE_RUN,
+    TIMER_MODE_SET,
+    TIMER_MODE_ALARM,
+};
 
+enum ETimerSetMode
+{
+    TIMER_SET_MODE_SECONDS,
+    TIMER_SET_MODE_MINUTES,
+};
 
 // CONSTANTS
 const int bnPinDown = 5;
@@ -53,6 +64,7 @@ const int bnSelect  = 1;
 const int bnStart   = 2;
 const int bnUp      = 3;
 
+bool buttonsPrev[4] = {false,false,false,false};
 bool buttons[4] = {false,false,false,false};
 
 #define PRESSED HIGH
@@ -62,10 +74,27 @@ uint32_t prevtime = 0;  // The previous app time
 
 static void UpdateButtonStates()
 {
+    for( int i = 0; i < 4; ++i )
+        buttonsPrev[i] = buttons[i];
     buttons[bnDown]     = digitalRead(bnPinDown) == PRESSED;
     buttons[bnSelect]   = digitalRead(bnPinSelect) == PRESSED;
     buttons[bnStart]    = digitalRead(bnPinStart) == PRESSED;
     buttons[bnUp]       = digitalRead(bnPinUp) == PRESSED;
+}
+
+static bool IsButtonDown(int button)
+{
+    return buttons[button];
+}
+
+static bool IsButtonPressed(int button)
+{
+    return buttons[button] && !buttonsPrev[button];
+}
+
+static bool IsButtonReleased(int button)
+{
+    return !buttons[button] && buttonsPrev[button];
 }
 
 /*
@@ -90,7 +119,7 @@ static void UpdateButtonStatesDebug(const String& command)
 }*/
 
 
-int timermode = 0; // 0 - set (not running), 1 - running, 2 - alarm
+int timermode = TIMER_MODE_SET; // 0 - set (not running), 1 - running, 2 - alarm
 int timersetmode = 0; // 0 - seconds, 1 - minutes
 uint32_t timertimeout = 87000; // The timeout in milliseconds
 uint32_t timertime = 0;
@@ -114,8 +143,8 @@ static void TimerDisplay()
     uint32_t v = 0;
     uint32_t w = 0;
 
-    bool show_seconds = timermode != 0 || timersetmode == 1 || timerblinkflag;
-    bool show_minutes = timermode != 0 || timersetmode == 0 || timerblinkflag;
+    bool show_seconds = timermode != TIMER_MODE_SET || timersetmode == TIMER_SET_MODE_MINUTES || timerblinkflag;
+    bool show_minutes = timermode != TIMER_MODE_SET || timersetmode == TIMER_SET_MODE_SECONDS || timerblinkflag;
 
     OledRect dstrect = {0, 0, 0, 32};
     
@@ -127,6 +156,8 @@ static void TimerDisplay()
     if( show_seconds ) {
         oled_blit_img(&numbers_image, &number_glyphs[v], &backbuffer, &dstrect);
     } else {
+        dstrect.x = x - numbers_max_width;
+        dstrect.width = numbers_max_width;
         oled_fill_rect(&backbuffer, &dstrect, 0);
     }
 
@@ -141,6 +172,8 @@ static void TimerDisplay()
     if( show_seconds ) {
         oled_blit_img(&numbers_image, &number_glyphs[v], &backbuffer, &dstrect);
     } else {
+        dstrect.x = x - numbers_max_width;
+        dstrect.width = numbers_max_width;
         oled_fill_rect(&backbuffer, &dstrect, 0);
     }
 
@@ -187,34 +220,37 @@ static void TimerUpdate(uint32_t millis)
     timerblinktime += millis;
 
     bool display_dirty = false;
-    if(timermode == 0)
+    if(timermode == TIMER_MODE_SET)
     {
-        if( buttons[bnSelect] )
+        if( IsButtonPressed(bnSelect) )
         {
             timersetmode = (timersetmode + 1) & 1;
-
+            timerblinktime = 250;
+            timerblinkflag = 0;
             // Serial.print("Select mode");
             // Serial.print(timersetmode);
             display_dirty = true;
         }
-        else if( buttons[bnStart] )
+        else if( IsButtonReleased(bnStart) )
         {
             if( timertimeout > 0 )
             {
-                timermode = 1;
+                timermode = TIMER_MODE_RUN;
                 timertime = 0;
 
 //                Serial.print("Start timer!");
             }
             display_dirty = true;
         }
-        else if( buttons[bnUp] )
+        else if( IsButtonPressed(bnUp) )
         {
             timertimeout += timersetmode ? 60000 : 1000;
             display_dirty = true;
+            timerblinktime = 0;
+            timerblinkflag = 1;
 //            Serial.print(timertimeout / 1000);
         }
-        else if( buttons[bnDown] )
+        else if( IsButtonPressed(bnDown) )
         {
             uint32_t step = timersetmode ? 60000 : 1000;
             if( timertimeout >= step)
@@ -223,6 +259,8 @@ static void TimerUpdate(uint32_t millis)
                 timertimeout = 0;
             
             display_dirty = true;
+            timerblinktime = 0;
+            timerblinkflag = 1;
 //            Serial.print(timertimeout / 1000);
         }
 
@@ -235,12 +273,12 @@ static void TimerUpdate(uint32_t millis)
 
         //delay(500);
     }
-    else if(timermode == 1)
+    else if(timermode == TIMER_MODE_RUN)
     {
         timertime += millis;
         if( timertime >= timertimeout )
         {
-            timermode = 2;
+            timermode = TIMER_MODE_ALARM;
             display_dirty = true;
         }
 
@@ -251,11 +289,11 @@ static void TimerUpdate(uint32_t millis)
             display_dirty = true;
         }
     }
-    else if(timermode == 2)
+    else if(timermode == TIMER_MODE_ALARM)
     {
-        if( buttons[bnUp] || buttons[bnDown] || buttons[bnStart] || buttons[bnSelect] )
+        if( IsButtonPressed(bnUp) || IsButtonPressed(bnDown) || IsButtonPressed(bnStart) || IsButtonPressed(bnSelect) )
         {
-            timermode = 0; // Back to timer set mode
+            timermode = TIMER_MODE_SET; // Back to timer set mode
             timersetmode = 0;
             timertime = 0;
         }
@@ -298,7 +336,7 @@ void setup()
     Wire.begin();
     Wire.setClock(400000);
 
-    oled_init(OLED_I2C_ADDRESS, 128, 32);
+    oled_init(OLED_I2C_ADDRESS, 128, 64);
     oled_clear();
 
     //memset(_backbuffer, 0xff, sizeof(_backbuffer));
