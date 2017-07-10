@@ -70,6 +70,9 @@ const uint8_t OLED_CMD_SET_MULTIPLEX                = 0xA8;
 // Initializes the oled display with the address
 void oled_init(uint8_t address);
 
+// Clears the entire display
+void oled_clear();
+
 // Displays a full image
 void oled_display(const uint8_t* data, uint32_t datalength);
 
@@ -81,6 +84,8 @@ void oled_text(const char* text, uint32_t textlen, const uint8_t* font, uint8_t 
 
 // Copies image data from one image to the oled
 void oled_blit(uint32_t page, uint32_t column, const uint8_t* img, uint32_t img_offset, uint32_t img_stride, uint32_t img_width, uint32_t img_height);
+
+void oled_invert(bool invert);
 
 struct OledImage
 {
@@ -101,6 +106,8 @@ struct OledRect
 void oled_blit_img(const OledImage* src, const OledRect* srcrect,
                     OledImage* dst, const OledRect* dstrect);
 
+// Fills a rectangle with a color
+void oled_fill_rect(OledImage* dst, const OledRect* dstrect, uint8_t value);
 
 #if defined(OLED_IMPLEMENTATION)
 
@@ -314,7 +321,7 @@ void oled_clear()
     }
 }
 
-void oled_blit(uint32_t page, uint32_t column, const uint8_t* img, uint32_t img_offset, uint32_t img_stride, uint32_t img_width, uint32_t img_height)
+void oled_blit(uint32_t page, uint32_t column, const uint8_t* img, uint32_t img_stride, uint32_t img_offset, uint32_t img_width, uint32_t img_height)
 {
     for( uint32_t p = 0; p < img_height/8; ++p )
     {
@@ -338,6 +345,36 @@ void oled_blit(uint32_t page, uint32_t column, const uint8_t* img, uint32_t img_
         }
     }
 }
+
+void oled_fill_rect(uint32_t page1, uint32_t column1, uint32_t page2, uint32_t column2, uint8_t value)
+{
+    for( ; page1 < page2; ++page1 )
+    {
+        if( page1 >= (_oled_height/8) )
+            break;
+        oled_set_cursor(page1, column1);
+
+        for( uint32_t x = column1; x < column2 && x < _oled_width; )
+        {
+            Wire.beginTransmission(_oled_slave_address);
+            Wire.write(OLED_CONTROL_BYTE_DATA_STREAM);
+
+            size_t sz = BUFFER_LENGTH - 1;
+            if( sz > (_oled_width - x) )
+                sz = _oled_width - x;
+            if( sz > (column2 - x) )
+                sz = column2 - x;
+
+            for( size_t n = 0; n < sz; n++ )
+                Wire.write(&value, 1);
+
+            x += sz;
+
+            Wire.endTransmission();   
+        }
+    }
+}
+
 
 void oled_blit_img(const OledImage* src, const OledRect* srcrect,
                     OledImage* dst, const OledRect* dstrect)
@@ -383,6 +420,15 @@ void oled_fill_rect(OledImage* dst, const OledRect* dstrect, uint8_t value)
             dst->img[dstindex] = value;
         }
     }
+}
+
+
+void oled_invert(bool invert)
+{    
+    Wire.beginTransmission(_oled_slave_address);
+    Wire.write(OLED_CONTROL_BYTE_CMD_SINGLE);
+    Wire.write(invert ? OLED_CMD_DISPLAY_INVERTED : OLED_CMD_DISPLAY_NORMAL);
+    Wire.endTransmission();
 }
 
 #endif
