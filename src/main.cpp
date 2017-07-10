@@ -363,8 +363,6 @@ static void TimerUpdate(int32_t millis)
     }
     else if(timermode == TIMER_MODE_IDLE)
     {
-        idletime += millis;
-
         // const int32_t TIMEOUT_IDLE_TO_SLEEP = 30 * SECOND;
         // if( timertime > TIMEOUT_IDLE_TO_SLEEP )
         // {
@@ -373,10 +371,18 @@ static void TimerUpdate(int32_t millis)
 
         if( IsButtonReleased(bnStart) )
         {
+            oled_constrast(0x7F);
             timermode = TIMER_MODE_SET;
             timersetmode = TIMER_SET_MODE_SECONDS;
             timertime = 0;
+            BLINK_ON;
         }
+        else if(idletime + millis > 10*SECOND)
+        {
+            oled_constrast(10);
+        }
+
+        idletime += millis;
     }
 
     bool display_dirty =

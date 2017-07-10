@@ -87,6 +87,8 @@ void oled_blit(uint32_t page, uint32_t column, const uint8_t* img, uint32_t img_
 
 void oled_invert(bool invert);
 
+void oled_constrast(uint8_t contrast);
+
 struct OledImage
 {
     uint8_t*    img;
@@ -428,6 +430,15 @@ void oled_invert(bool invert)
     Wire.beginTransmission(_oled_slave_address);
     Wire.write(OLED_CONTROL_BYTE_CMD_SINGLE);
     Wire.write(invert ? OLED_CMD_DISPLAY_INVERTED : OLED_CMD_DISPLAY_NORMAL);
+    Wire.endTransmission();
+}
+
+void oled_constrast(uint8_t contrast)
+{
+    Wire.beginTransmission(_oled_slave_address);
+    Wire.write(OLED_CONTROL_BYTE_CMD_STREAM);
+    Wire.write(OLED_CMD_SET_CONTRAST);
+    Wire.write(contrast);
     Wire.endTransmission();
 }
 
