@@ -14,15 +14,31 @@ AVRDUDE=$ARDUINO_TOOLS_DIR/avrdude
 #AVRSIZE=$ARDUINO_TOOLS_DIR/avr-size
 AVRSIZE=~/work/external/toolchain-avr/objdir/bin/avr-size
 
-MCU=atmega328p
 PORT=/dev/cu.wchusbserial1420
+
+MODEL=NANO
+
+MODELDEFINES=
+if [ "$MODEL" == "UNO" ]; then
+    MCU=atmega328p
+    MODELDEFINES="-DARDUINO=10802 -DARDUINO_AVR_UNO -DARDUINO_ARCH_AVR"
+    BAUD=115200
+elif [ "$MODEL" == "NANO" ]; then
+    MCU=atmega328p
+    MODELDEFINES="-DARDUINO=10802 -DARDUINO_AVR_NANO -DARDUINO_ARCH_AVR"
+    BAUD=57600
+else
+    echo "No build model set!"
+    exit 1
+fi
 
 BUILD=./build
 TARGET=kitchentimer
 
+
 INCLUDES="-I$ARDUINO_DIR/hardware/arduino/avr/cores/arduino/ -I$ARDUINO_DIR/hardware/arduino/avr/variants/standard -I$ARDUINO_DIR/hardware/arduino/avr/libraries/Wire/src/"
 CPPOPT="-Os"
-CPPFLAGS="-MMD -c -mmcu=$MCU -Wall -g -gdwarf-2 -ffunction-sections -fdata-sections -DF_CPU=16000000L -D__PROG_TYPES_COMPAT__ -DARDUINO=10802 -DARDUINO_AVR_UNO -DARDUINO_ARCH_AVR -fdiagnostics-color"
+CPPFLAGS="-MMD -c -mmcu=$MCU -Wall -g -gdwarf-2 -ffunction-sections -fdata-sections -DF_CPU=16000000L -D__PROG_TYPES_COMPAT__ -fdiagnostics-color $MODELDEFINES"
 #AVR_DEBUG  CPPFLAGS="-c -g -Os -w -std=gnu++11 -fpermissive -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics -MMD -flto -mmcu=$MCU -DF_CPU=16000000L -DARDUINO=10802 -DARDUINO_AVR_UNO -DARDUINO_ARCH_AVR"
 CFLAGS="-std=gnu11 -flto -fno-fat-lto-objects"
 CXXFLAGS="$CPPFLAGS -fno-threadsafe-statics -flto -fpermissive -fno-exceptions"
@@ -127,4 +143,4 @@ echo "VERIFYING SIZE"
 $AVRSIZE --mcu=$MCU -C $BUILD/$TARGET.elf
 
 echo "UPLOADING FLASH"
-$AVRDUDE -V -C$ARDUINO_DIR/hardware/tools/avr/etc/avrdude.conf -p$MCU -carduino -P$PORT -b115200 -D -Uflash:w:$BUILD/$TARGET.hex:i
+$AVRDUDE -V -C$ARDUINO_DIR/hardware/tools/avr/etc/avrdude.conf -p$MCU -carduino -P$PORT -b$BAUD -D -Uflash:w:$BUILD/$TARGET.hex:i

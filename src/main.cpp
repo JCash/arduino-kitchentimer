@@ -47,9 +47,9 @@ enum ETimerSetMode
 
 // CONSTANTS
 const int bnPinDown = 5;
-const int bnPinSelect = 6;
-const int bnPinStart = 7;
-const int bnPinUp = 8;
+const int bnPinSelect = 3;
+const int bnPinStart = 2;
+const int bnPinUp = 4;
 // left to right
 const int bnDown    = 0;
 const int bnSelect  = 1;
@@ -227,7 +227,7 @@ static inline void AddTime(int32_t ms)
 
 static void TimerUpdate(int32_t millis)
 {
-#define BLINK_ON \
+#define BLINK_RESET \
     timerblinktime = 0; \
     timerblinkflag = 1;
 
@@ -262,7 +262,7 @@ static void TimerUpdate(int32_t millis)
         {
             timertime = 0;
             timertimeout = 0;
-            BLINK_ON;
+            BLINK_RESET;
         }
         else if( IsButtonPressed(bnSelect) )
         {
@@ -282,16 +282,16 @@ static void TimerUpdate(int32_t millis)
         else if( IsButtonPressed(bnUp) )
         {
             AddTime(timersetmode == TIMER_SET_MODE_MINUTES ? MINUTE : SECOND);
-            BLINK_ON;
+            BLINK_RESET;
         }
         else if( IsButtonPressed(bnDown) )
         {
             AddTime(timersetmode == TIMER_SET_MODE_MINUTES ? -MINUTE : -SECOND);
-            BLINK_ON;
+            BLINK_RESET;
         }
         else if( IsButtonDown(bnDown) || IsButtonDown(bnUp) )
         {
-            BLINK_ON;
+            BLINK_RESET;
             buttonTimeDown += millis;
             if( buttonTimeDown >= buttonTimeDownThreshold )
             {
@@ -375,7 +375,7 @@ static void TimerUpdate(int32_t millis)
             timermode = TIMER_MODE_SET;
             timersetmode = TIMER_SET_MODE_SECONDS;
             timertime = 0;
-            BLINK_ON;
+            BLINK_RESET;
         }
         else if(idletime + millis > 10*SECOND)
         {
@@ -394,7 +394,7 @@ static void TimerUpdate(int32_t millis)
     if(display_dirty)
         TimerDisplay();
 
-#undef BLINK_ON
+#undef BLINK_RESET
 }
 
 
@@ -405,7 +405,7 @@ void setup()
 #endif
 
     // Debugging
-    pinMode(13, OUTPUT); // Turn off the led on pin 13
+    pinMode(LED_BUILTIN, OUTPUT); // Turn off the led on pin 13
 #if !defined(AVR_DEBUG)
     Serial.begin(9600);
 #endif
@@ -426,13 +426,6 @@ void setup()
 
 void loop()
 {
-    /*
-    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(300);
-    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    delay(300);
-    */
-
     int32_t time = (int32_t)millis();
     int32_t deltamillis = time - prevtime;
     if( time < prevtime )
@@ -450,4 +443,5 @@ void loop()
     if( diff < frameTime )
         delay(frameTime - diff);
 }
+
 
