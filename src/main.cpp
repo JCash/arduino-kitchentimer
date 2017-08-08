@@ -28,7 +28,6 @@ const uint16_t numbers_offsets[]= {  0, 21, 42, 63, 84,105,126,147,168,189,210,2
 const uint8_t numbers_sizes[]   = { 21, 21, 21, 21, 21, 21, 21, 21, 21, 21,  8, 20};
 const uint8_t numbers_max_width = 21;
 
-
 enum ETimerMode
 {
     TIMER_MODE_IDLE,
@@ -50,6 +49,7 @@ const int bnPinDown = 5;
 const int bnPinSelect = 3;
 const int bnPinStart = 2;
 const int bnPinUp = 4;
+const int soundPin = 10;
 // left to right
 const int bnDown    = 0;
 const int bnSelect  = 1;
@@ -216,6 +216,41 @@ static void TimerDisplay()
     }
 }
 
+static void AlarmSound(int32_t millis, int32_t pin_out)
+{
+    static int signal = 0;
+    static int count = 0;
+    static int del = 0;
+
+    if( del <= 0 )
+    {
+        int tone_time = 20;
+        int silence_time = 3;
+        signal = (signal + 1) % 2;
+        if( signal )
+        {
+            tone(pin_out, 2000, tone_time);
+            del = tone_time;
+        }
+        else
+        {
+            noTone(pin_out);
+            del = silence_time;
+
+            count++;
+            if(count == 4)
+            {
+                count = 0;
+                del = (tone_time+silence_time) * 4 * 2 + silence_time;
+            }
+        }
+    }
+    else if (del > 0)
+    {
+        del -= millis;
+    }
+}
+
 static inline void AddTime(int32_t ms)
 {
     int32_t* tval = timermode == TIMER_MODE_SET ? &timertimeout : &timertime;
@@ -223,7 +258,6 @@ static inline void AddTime(int32_t ms)
     if( *tval <= 0 )
         *tval = 0;
 }
-
 
 static void TimerUpdate(int32_t millis)
 {
@@ -360,6 +394,8 @@ static void TimerUpdate(int32_t millis)
             timerblinktime = timerblinktime % 500;
             timerblinkflag = ~timerblinkflag & 1;
         }
+
+        AlarmSound(millis, soundPin);
     }
     else if(timermode == TIMER_MODE_IDLE)
     {
@@ -415,6 +451,7 @@ void setup()
     pinMode(bnPinSelect, INPUT);
     pinMode(bnPinStart, INPUT);
     pinMode(bnPinUp, INPUT);
+    pinMode(soundPin, OUTPUT);
 
     // OLED
     Wire.begin();
@@ -427,15 +464,15 @@ void setup()
 void loop()
 {
     int32_t time = (int32_t)millis();
-    int32_t deltamillis = time - prevtime;
+    int32_t delta = time - prevtime;
     if( time < prevtime )
     {
-        deltamillis = 0xFFFFFFFF - prevtime + time; // Wrap around every 50 days :/
+        delta = 0xFFFFFFFF - prevtime + time;
     }
     prevtime = time;
 
     UpdateButtonStates();
-    TimerUpdate(deltamillis);
+    TimerUpdate(delta);
 
     int32_t timeend = millis();
     int32_t diff = timeend - time;
